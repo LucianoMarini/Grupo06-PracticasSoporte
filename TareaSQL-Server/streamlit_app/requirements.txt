@@ -1,0 +1,8 @@
+streamlit
+mysql-connector-python
+pandas
+python-dotenv
+fpdf
+xlsxwriter
+openpyxl
+plotly
