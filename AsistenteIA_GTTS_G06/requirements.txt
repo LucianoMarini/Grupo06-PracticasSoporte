@@ -1,0 +1,6 @@
+gTTS
+SpeechRecognition
+sounddevice
+pygame-ce
+google-genai
+python-dotenv
