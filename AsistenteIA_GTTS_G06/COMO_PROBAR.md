@@ -20,7 +20,8 @@ Abrí el `.env` y pegá tu key en `GEMINI_API_KEY`. Dejá el resto como está:
 
 ```
 GEMINI_API_KEY=tu_key_aca
-GEMINI_MODEL=gemini-flash-latest
+GEMINI_MODEL=gemini-flash-lite-latest
+GEMINI_FALLBACK_MODELS=gemini-3.5-flash-lite,gemini-3.5-flash
 TTS_LANG=es
 SPEECH_LANG=es-AR
 ```

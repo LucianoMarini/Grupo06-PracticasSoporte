@@ -43,7 +43,8 @@ Editala:
 
 ```
 GEMINI_API_KEY=tu_clave_aqui
-GEMINI_MODEL=gemini-flash-latest
+GEMINI_MODEL=gemini-flash-lite-latest
+GEMINI_FALLBACK_MODELS=gemini-3.5-flash-lite,gemini-3.5-flash
 TTS_LANG=es
 SPEECH_LANG=es-AR
 ```
@@ -51,7 +52,8 @@ SPEECH_LANG=es-AR
 | Variable        | Descripción                                             |
 |-----------------|---------------------------------------------------------|
 | `GEMINI_API_KEY`| Clave de Google AI Studio (obligatoria)                 |
-| `GEMINI_MODEL`  | Modelo de Gemini (`gemini-flash-latest` es el alias estable) |
+| `GEMINI_MODEL`  | Modelo de Gemini (`gemini-flash-lite-latest` es el más estable ahora) |
+| `GEMINI_FALLBACK_MODELS` | Modelos de respaldo separados por coma; se usan si el principal está saturado o no disponible |
 | `TTS_LANG`      | Idioma de la voz generada con gTTS (`es`, `en`, ...)    |
 | `SPEECH_LANG`   | Idioma del reconocimiento de voz (`es-AR`, `en-US`, ...)|
 
@@ -86,6 +88,7 @@ python main.py --list-devices  # lista los micrófonos/altavoces detectados
 | "No detecté voz" | Acercate al micrófono o hablá más fuerte; ajustá `RMS_THRESHOLD` en `main.py` |
 | No se escucha la respuesta | Revisá el volumen del sistema y el dispositivo de salida |
 | Error de red en la IA/reconocimiento | Verificá tu conexión a internet |
+| `503 UNAVAILABLE` de Gemini | Es saturación temporal de Google; el asistente reintenta y, si sigue fallando, usa `GEMINI_FALLBACK_MODELS` automáticamente |
 
 ## Estructura
 
@@ -104,7 +107,8 @@ gTTS/
    (umbral de energía por bloque de 0,2 s).
 2. **Reconocimiento** — `speech_recognition.recognize_google` convierte el audio en texto.
 3. **IA** — `google-genai` (SDK oficial de Gemini) responde con memoria de conversación
-   (la clase `chats` guarda el historial).
+   (el historial se reinyecta en cada `chats.create`). Ante errores transitorios (503/429/500…)
+   reintenta con backoff y, si el modelo principal sigue caído, pasa a los de respaldo.
 4. **Síntesis** — `gTTS` genera un `.mp3` temporal en español.
 5. **Reproducción** — `pygame.mixer.music` lo reproduce sin abrir reproductores externos y
    borra el temporal al terminar.

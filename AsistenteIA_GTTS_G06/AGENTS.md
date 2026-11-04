@@ -8,7 +8,10 @@ Voice assistant (mic → STT → Gemini → gTTS → pygame), single script `mai
 - AI uses the current `google-genai` SDK (`from google import genai`). The old `google-generativeai` package is deprecated — do not reintroduce it.
 
 ## Gemini model gotcha
-Older models are unavailable to new accounts: `gemini-2.0-flash` returns 429 quota-0, `gemini-2.5-flash`/`gemini-1.5-flash` return 404. Use `gemini-flash-latest` (stable alias). It lives in `.env` as `GEMINI_MODEL` and as the default in `main.py`.
+Older models are unavailable to new accounts: `gemini-2.0-flash` returns 429 quota-0, `gemini-2.5-flash`/`gemini-1.5-flash` return 404. `gemini-flash-latest` frequently returns 503 under load.
+The default is now `gemini-flash-lite-latest` (full flash was saturating during demos). It lives in `.env` as `GEMINI_MODEL` and as the default in `main.py`. Fallbacks: `gemini-3.5-flash-lite`, `gemini-3.5-flash`, configured via `GEMINI_FALLBACK_MODELS`.
+`gemini-2.5-flash-lite` and `gemini-3.8-flash-lite` are listed by the API but return 404.
+`ask_ai()` retries transient errors (429/500/502/503/504) with exponential backoff and then falls back across models, replaying its own `history` into `chats.create` so conversation memory survives a model switch.
 
 ## Config / secrets
 - `GEMINI_API_KEY` is required; loaded from `.env` via `python-dotenv` (`load_dotenv()` runs at import, so the `.env` must sit in the repo root / CWD).

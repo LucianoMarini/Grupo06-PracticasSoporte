@@ -1,6 +1,7 @@
 import os
 import sys
 import tempfile
+import time
 
 import numpy as np
 import pygame
@@ -8,15 +9,26 @@ import sounddevice as sd
 import speech_recognition as sr
 from dotenv import load_dotenv
 from google import genai
-from google.genai import types
+from google.genai import errors, types
 from gtts import gTTS
 
 load_dotenv()
 
 API_KEY = os.getenv("GEMINI_API_KEY")
-MODEL = os.getenv("GEMINI_MODEL", "gemini-flash-latest")
+MODEL = os.getenv("GEMINI_MODEL", "gemini-flash-lite-latest")
+FALLBACK_MODELS = [
+    name.strip()
+    for name in os.getenv(
+        "GEMINI_FALLBACK_MODELS", "gemini-3.5-flash-lite,gemini-3.5-flash"
+    ).split(",")
+    if name.strip()
+]
 TTS_LANG = os.getenv("TTS_LANG", "es")
 SPEECH_LANG = os.getenv("SPEECH_LANG", "es-AR")
+
+RETRY_ATTEMPTS = 3
+RETRY_BASE_DELAY = 1.5
+TRANSIENT_CODES = {429, 500, 502, 503, 504}
 
 SAMPLE_RATE = 16000
 BLOCK_SECONDS = 0.2
@@ -33,16 +45,38 @@ SYSTEM_PROMPT = (
 )
 
 ai_client = None
-chat = None
+history = []
+
+
+class EmptyResponseError(Exception):
+    pass
 
 
 def init_ai():
-    global ai_client, chat
+    global ai_client
     ai_client = genai.Client(api_key=API_KEY)
-    chat = ai_client.chats.create(
-        model=MODEL,
-        config=types.GenerateContentConfig(system_instruction=SYSTEM_PROMPT),
-    )
+
+
+def available_models():
+    models = []
+    for name in [MODEL, *FALLBACK_MODELS]:
+        if name and name not in models:
+            models.append(name)
+    return models
+
+
+def error_code(exc):
+    if isinstance(exc, errors.APIError):
+        return exc.code
+    text = str(exc)
+    for code in (400, 401, 403, 404, 429, 500, 502, 503, 504):
+        if str(code) in text:
+            return code
+    return None
+
+
+def is_transient(exc):
+    return error_code(exc) in TRANSIENT_CODES
 
 
 def record_audio():
@@ -102,8 +136,48 @@ def listen_and_recognize():
 
 
 def ask_ai(user_text):
-    response = chat.send_message(user_text)
-    return response.text.strip()
+    global history
+    last_exc = None
+
+    for model in available_models():
+        for attempt in range(RETRY_ATTEMPTS):
+            try:
+                chat = ai_client.chats.create(
+                    model=model,
+                    config=types.GenerateContentConfig(system_instruction=SYSTEM_PROMPT),
+                    history=list(history),
+                )
+                response = chat.send_message(user_text)
+                text = (response.text or "").strip()
+                if not text:
+                    raise EmptyResponseError("El modelo devolvió una respuesta vacía.")
+                history.append(
+                    types.Content(role="user", parts=[types.Part(text=user_text)])
+                )
+                history.append(
+                    types.Content(role="model", parts=[types.Part(text=text)])
+                )
+                return text
+            except EmptyResponseError as exc:
+                last_exc = exc
+                break
+            except Exception as exc:
+                code = error_code(exc)
+                if code == 404:
+                    last_exc = exc
+                    print(f"  El modelo {model} no está disponible, probando otro...")
+                    break
+                if not is_transient(exc):
+                    raise
+                last_exc = exc
+                if attempt < RETRY_ATTEMPTS - 1:
+                    delay = RETRY_BASE_DELAY * (2**attempt)
+                    print(f"  Servicio saturado, reintentando en {delay:.1f}s...")
+                    time.sleep(delay)
+
+    if last_exc is not None:
+        raise last_exc
+    raise RuntimeError("Ningún modelo de Gemini respondió.")
 
 
 def speak(text):
@@ -136,11 +210,15 @@ def main():
     text_mode = "--text" in sys.argv
 
     init_ai()
-    pygame.mixer.init()
+    try:
+        pygame.mixer.init()
+    except Exception as exc:
+        print(f"  Advertencia: no se pudo iniciar el audio ({exc}). No se escuchará la voz.")
 
     print("==================================================")
     print(" Asistente Conversacional por Voz (gTTS + Gemini)")
     print("==================================================")
+    print(f" Modelo: {MODEL} (respaldos: {', '.join(FALLBACK_MODELS) or 'ninguno'})")
     if text_mode:
         print(" Modo texto: escribí tu mensaje y presioná Enter.")
     else:
