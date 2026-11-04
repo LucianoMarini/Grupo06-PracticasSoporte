@@ -1,0 +1,20 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>Perfil</title>
+</head>
+
+<body>
+    <!-- Accedemos a las claves del diccionario usando un punto -->
+    <h1>¡Hola, {{ usuario.username }}!</h1>
+    <p>Tu correo registrado es: {{ usuario.email }}</p>
+
+    {% if usuario.edad %}
+    <p>Tienes {{ usuario.edad }} años.</p>
+    {% endif %}
+
+    <a href="/">Volver al inicio</a>
+</body>
+
+</html>
