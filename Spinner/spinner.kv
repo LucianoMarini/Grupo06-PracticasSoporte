@@ -1,3 +1,8 @@
+from kivy.app import App
+from kivy.lang import Builder
+
+# código KV guardado como un bloque de texto
+kv_code = """
 FloatLayout:
     Spinner:
         size_hint: None, None
@@ -7,3 +12,12 @@ FloatLayout:
         values: 'Home', 'Work', 'Other', 'Custom'
         on_text:
             print("The spinner {} has text {}".format(self, self.text))
+"""
+
+class MiApp(App):
+    def build(self):
+        # Builder lee el texto KV y renderiza la interfaz
+        return Builder.load_string(kv_code)
+
+if __name__ == '__main__':
+    MiApp().run()
