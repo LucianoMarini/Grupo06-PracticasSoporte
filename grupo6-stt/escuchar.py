@@ -1,5 +1,7 @@
 import speech_recognition as sr
 
+# EJECUTAR py -3.12 escuchar.py
+
 
 def escuchar_y_transcribir():
 
